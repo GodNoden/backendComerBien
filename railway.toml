@@ -1,0 +1,9 @@
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+startCommand = "java -jar app.jar"
+restartPolicyType = "ON_FAILURE"
+
+[env]
+SPRING_PROFILES_ACTIVE = "prod"
