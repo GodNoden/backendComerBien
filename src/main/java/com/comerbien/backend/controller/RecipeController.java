@@ -17,7 +17,8 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/recipes")
-@CrossOrigin(origins = "http://localhost:8080")
+//@CrossOrigin(origins = "http://localhost:8080")
+@CrossOrigin(origins = "https://comerbien.com.mx")
 public class RecipeController {
 
     private final RecipeService recipeService;
