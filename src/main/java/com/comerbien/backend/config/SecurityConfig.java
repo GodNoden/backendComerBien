@@ -72,7 +72,11 @@ public class SecurityConfig {
         System.out.println("🔧 Configuring CORS...");
 
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:8080"));
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:8080",
+                "https://comerbien.com.mx",
+                "https://www.comerbien.com.mx",
+                "https://tourmaline-sprite-043ae0.netlify.app"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
