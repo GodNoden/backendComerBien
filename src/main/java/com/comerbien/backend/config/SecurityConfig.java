@@ -52,6 +52,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/recipes/search").permitAll()
                         .requestMatchers("/api/test").permitAll()
                         .requestMatchers("/api/favorites/*/status").permitAll()
+                        .requestMatchers("/api/files/*").permitAll()
+                        .requestMatchers("/uploads/*").permitAll()
                         .requestMatchers("/api/menus/*").authenticated() // Todos los endpoints de menús requieren
                                                                          // auth// Para ver status sin auth. Si tienes
                                                                          // endpoint de test
