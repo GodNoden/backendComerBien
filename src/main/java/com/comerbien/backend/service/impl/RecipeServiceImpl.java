@@ -16,6 +16,8 @@ import com.comerbien.backend.repository.UserRepository;
 import com.comerbien.backend.service.FileStorageService;
 import com.comerbien.backend.service.FoodFactService;
 import com.comerbien.backend.service.RecipeService;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -79,6 +81,46 @@ public class RecipeServiceImpl implements RecipeService {
         return convertToResponse(recipe);
     }
 
+    // @Override
+    // public RecipeResponse createRecipe(RecipeRequest recipeRequest, Long userId)
+    // {
+    // User user = userRepository.findById(userId)
+    // .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " +
+    // userId));
+
+    // Recipe recipe = new Recipe();
+    // updateRecipeFromRequest(recipe, recipeRequest);
+    // recipe.setCreatedBy(user);
+
+    // // Manejar upload de imagen si existe
+    // if (recipeRequest.getImageFile() != null &&
+    // !recipeRequest.getImageFile().isEmpty()) {
+    // try {
+    // String imagePath =
+    // fileStorageService.storeFile(recipeRequest.getImageFile());
+    // recipe.setImage(imagePath);
+    // } catch (Exception e) {
+    // throw new RuntimeException("Error al guardar la imagen: " + e.getMessage());
+    // }
+    // }
+
+    // Recipe savedRecipe = recipeRepository.save(recipe);
+
+    // // ✅ AUTO-ASIGNAR FOOD FACTS DESPUÉS DE CREAR LA RECETA
+    // try {
+    // foodFactService.autoAssignFoodFactsToRecipe(savedRecipe.getId());
+    // System.out.println("✅ Auto-assigned food facts to recipe: " +
+    // savedRecipe.getTitle());
+    // } catch (Exception e) {
+    // // No fallar la creación si el matching falla, solo loggear
+    // System.out.println(
+    // "⚠️ Auto-assign food facts failed for recipe " + savedRecipe.getId() + ": " +
+    // e.getMessage());
+    // }
+
+    // return convertToResponse(savedRecipe);
+    // }
+
     @Override
     public RecipeResponse createRecipe(RecipeRequest recipeRequest, Long userId) {
         User user = userRepository.findById(userId)
@@ -92,7 +134,12 @@ public class RecipeServiceImpl implements RecipeService {
         if (recipeRequest.getImageFile() != null && !recipeRequest.getImageFile().isEmpty()) {
             try {
                 String imagePath = fileStorageService.storeFile(recipeRequest.getImageFile());
-                recipe.setImage(imagePath);
+
+                // ✅ CORREGIDO: Guardar la URL COMPLETA en lugar de solo el path
+                String imageUrl = "https://backendcomerbien-production.up.railway.app/api/files/" + imagePath;
+                recipe.setImage(imageUrl);
+
+                System.out.println("🖼️ Image saved with URL: " + imageUrl);
             } catch (Exception e) {
                 throw new RuntimeException("Error al guardar la imagen: " + e.getMessage());
             }
@@ -105,7 +152,6 @@ public class RecipeServiceImpl implements RecipeService {
             foodFactService.autoAssignFoodFactsToRecipe(savedRecipe.getId());
             System.out.println("✅ Auto-assigned food facts to recipe: " + savedRecipe.getTitle());
         } catch (Exception e) {
-            // No fallar la creación si el matching falla, solo loggear
             System.out.println(
                     "⚠️ Auto-assign food facts failed for recipe " + savedRecipe.getId() + ": " + e.getMessage());
         }
@@ -204,15 +250,20 @@ public class RecipeServiceImpl implements RecipeService {
         recipe.setTitle(request.getTitle());
         recipe.setTime(request.getTime());
         recipe.setDifficulty(request.getDifficulty());
-        recipe.setImage(request.getImage());
         recipe.setCategory(request.getCategory());
         recipe.setCalories(request.getCalories());
         recipe.setProtein(request.getProtein());
         recipe.setCarbs(request.getCarbs());
         recipe.setFat(request.getFat());
+        recipe.setTags(request.getTags() != null ? request.getTags() : new ArrayList<>());
+        recipe.setIngredients(request.getIngredients() != null ? request.getIngredients() : new ArrayList<>());
         recipe.setInstructions(request.getInstructions());
-        recipe.setIsPublic(request.getIsPublic());
+        recipe.setIsPublic(request.getIsPublic() != null ? request.getIsPublic() : false);
 
+        // ✅ Si viene una imagen como URL (no como file), guardarla directamente
+        if (request.getImage() != null && !request.getImage().isEmpty()) {
+            recipe.setImage(request.getImage());
+        }
         if (request.getTags() != null) {
             recipe.setTags(request.getTags());
         }
