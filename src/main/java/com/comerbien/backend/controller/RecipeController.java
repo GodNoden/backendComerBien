@@ -12,19 +12,22 @@ import com.comerbien.backend.model.enums.MealCategory;
 import com.comerbien.backend.model.enums.Difficulty;
 import com.comerbien.backend.model.enums.Tag;
 import com.comerbien.backend.security.CustomUserDetails;
+import com.comerbien.backend.service.FileStorageService;
 import com.comerbien.backend.service.RecipeService;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/recipes")
-//@CrossOrigin(origins = "http://localhost:8080")
-@CrossOrigin(origins = "https://comerbien.com.mx")
+// @CrossOrigin(origins = "http://localhost:8080")
+@CrossOrigin(origins = { "http://localhost:8080", "https://comerbien.com.mx" })
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final FileStorageService fileStorageService; // Añade esto
 
-    public RecipeController(RecipeService recipeService) {
+    public RecipeController(RecipeService recipeService, FileStorageService fileStorageService) {
         this.recipeService = recipeService;
+        this.fileStorageService = fileStorageService;
     }
 
     @GetMapping
@@ -74,12 +77,19 @@ public class RecipeController {
             @RequestPart(value = "imageFile", required = false) MultipartFile imageFile,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        if (imageFile != null && !imageFile.isEmpty()) {
-            recipeRequest.setImageFile(imageFile);
-        }
+        try {
+            // Manejar la imagen si se proporciona
+            if (imageFile != null && !imageFile.isEmpty()) {
+                String fileName = fileStorageService.storeFile(imageFile);
+                recipeRequest.setImage("/api/files/" + fileName); // Guardar la URL de la imagen
+            }
 
-        RecipeResponse recipe = recipeService.createRecipe(recipeRequest, userDetails.getUser().getId());
-        return ResponseEntity.ok(recipe);
+            RecipeResponse recipe = recipeService.createRecipe(recipeRequest, userDetails.getUser().getId());
+            return ResponseEntity.ok(recipe);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PutMapping("/{id}")
