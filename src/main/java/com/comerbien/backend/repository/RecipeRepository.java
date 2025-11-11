@@ -20,6 +20,7 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
     List<Recipe> findByDifficulty(Difficulty difficulty);
 
     // Encontrar recetas públicas
+    @Query("SELECT r FROM Recipe r WHERE r.isPublic = true")
     List<Recipe> findByIsPublicTrue();
 
     // Encontrar recetas por usuario creador
