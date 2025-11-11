@@ -156,15 +156,28 @@ public class RecommendationServiceImpl implements RecommendationService {
             return true;
         }
 
-        // Convertir ingredientes de la receta a lowercase para comparación
+        // Convertir a lowercase para comparación case-insensitive
         Set<String> recipeIngredients = recipe.getIngredients().stream()
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
 
+        Set<String> lowerAllergies = userAllergies.stream()
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+
         // Verificar si algún ingrediente contiene algún alérgeno
-        return userAllergies.stream()
-                .noneMatch(allergy -> recipeIngredients.stream()
-                        .anyMatch(ingredient -> ingredient.contains(allergy.toLowerCase())));
+        boolean hasAllergy = recipeIngredients.stream()
+                .anyMatch(ingredient -> lowerAllergies.stream()
+                        .anyMatch(allergy -> ingredient.contains(allergy)));
+
+        if (hasAllergy) {
+            System.out.println("   ❌ Receta " + recipe.getTitle() + " contiene alergenos: " +
+                    recipeIngredients.stream()
+                            .filter(ingredient -> lowerAllergies.stream().anyMatch(ingredient::contains))
+                            .collect(Collectors.toList()));
+        }
+
+        return !hasAllergy;
     }
 
     /**
@@ -180,9 +193,22 @@ public class RecommendationServiceImpl implements RecommendationService {
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
 
-        return userDislikes.stream()
-                .noneMatch(dislike -> recipeIngredients.stream()
-                        .anyMatch(ingredient -> ingredient.contains(dislike.toLowerCase())));
+        Set<String> lowerDislikes = userDislikes.stream()
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+
+        boolean hasDisliked = recipeIngredients.stream()
+                .anyMatch(ingredient -> lowerDislikes.stream()
+                        .anyMatch(dislike -> ingredient.contains(dislike)));
+
+        if (hasDisliked) {
+            System.out.println("   ❌ Receta " + recipe.getTitle() + " contiene ingredientes disgustados: " +
+                    recipeIngredients.stream()
+                            .filter(ingredient -> lowerDislikes.stream().anyMatch(ingredient::contains))
+                            .collect(Collectors.toList()));
+        }
+
+        return !hasDisliked;
     }
 
     /**
@@ -198,22 +224,29 @@ public class RecommendationServiceImpl implements RecommendationService {
     }
 
     /**
-     * Filtro 5: Preferencias nutricionales basadas en tags - CORREGIDO
+     * Filtro 5: Preferencias nutricionales - MEJORADO
      */
     private boolean filterByNutritionalPreferences(User user, Recipe recipe) {
         Set<Tag> userPreferences = user.getNutritionalPreferences();
         if (userPreferences == null || userPreferences.isEmpty()) {
-            return true;
+            return true; // Si no tiene preferencias, no filtrar
         }
 
         List<Tag> recipeTags = recipe.getTags();
         if (recipeTags == null || recipeTags.isEmpty()) {
-            return true;
+            return false; // Si la receta no tiene tags y el usuario sí tiene preferencias, filtrar
         }
 
-        // Verificar si la receta coincide con las preferencias del usuario
-        return userPreferences.stream()
+        // Verificar si la receta tiene al menos una de las preferencias del usuario
+        boolean matches = userPreferences.stream()
                 .anyMatch(preference -> recipeTags.contains(preference));
+
+        if (!matches) {
+            System.out.println("   ❌ Receta " + recipe.getTitle() + " no coincide con preferencias: " +
+                    userPreferences + " vs " + recipeTags);
+        }
+
+        return matches;
     }
 
     /**
