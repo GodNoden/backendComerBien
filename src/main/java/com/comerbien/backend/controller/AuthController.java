@@ -10,7 +10,7 @@ import com.comerbien.backend.service.AuthService;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:8080")
+@CrossOrigin(origins = { "http://localhost:8080", "https://comerbien.com.mx" })
 public class AuthController {
 
     private final AuthService authService;

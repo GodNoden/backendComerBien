@@ -2,6 +2,7 @@ package com.comerbien.backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,6 +18,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.comerbien.backend.security.JwtAuthenticationFilter;
 import com.comerbien.backend.security.CustomUserDetailsService;
 import java.util.Arrays;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
@@ -34,32 +36,39 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         System.out.println("🔧 Configuring Spring Security...");
-        System.out.println("🔧 Configuring Spring Security with paths:");
-        System.out.println("   - /api/auth/** → PERMIT_ALL");
-        System.out.println("   - /api/health → PERMIT_ALL");
-        System.out.println("   - /api/recipes/public → PERMIT_ALL");
-        System.out.println("   - /api/recipes/search → PERMIT_ALL");
-        System.out.println("   - All others → AUTHENTICATED");
 
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // ⚠️ IMPORTANTE: Usar paths COMPLETOS incluyendo /api
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // ✅ PRIMERO - TODOS los endpoints PÚBLICOS (más específicos primero)
+                        .requestMatchers("/api/auth/*").permitAll()
                         .requestMatchers("/api/health").permitAll()
-                        .requestMatchers("/api/recipes/public").permitAll()
-                        .requestMatchers("/api/recipes/search").permitAll()
                         .requestMatchers("/api/test").permitAll()
-                        .requestMatchers("/api/favorites/*/status").permitAll()
+
+                        // ✅ RECETAS PÚBLICAS
+                        .requestMatchers(HttpMethod.GET, "/api/recipes/public").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/recipes/search").permitAll()
+
+                        // ✅ FOOD FACTS - TODOS PÚBLICOS (GET)
+                        .requestMatchers(HttpMethod.GET, "/api/food-facts/**").permitAll()
+
+                        // ✅ ARCHIVOS Y UPLOADS
                         .requestMatchers("/api/files/*").permitAll()
                         .requestMatchers("/uploads/*").permitAll()
-                        .requestMatchers("/api/menus/*").authenticated() // Todos los endpoints de menús requieren
-                                                                         // auth// Para ver status sin auth. Si tienes
-                                                                         // endpoint de test
-                        .requestMatchers("/api/food-facts/*").permitAll() // ✅ NUEVO: Food facts públicos
+                        .requestMatchers("/api/favorites/*/status").permitAll()
 
-                        // Todos los demás endpoints requieren autenticación
+                        // ✅ LUEGO - Endpoints que requieren AUTENTICACIÓN
+                        .requestMatchers("/api/menus/*").authenticated()
+                        .requestMatchers("/api/favorites/*").authenticated()
+                        .requestMatchers("/api/recipes/*").authenticated() // ← TODAS las demás recetas
+                        .requestMatchers("/api/users/*").authenticated()
+                        .requestMatchers("/api/weekly-menu/*").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/food-facts/*").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/food-facts/*").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/food-facts/*").authenticated()
+
+                        // ✅ FINALMENTE - cualquier otro endpoint
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -68,6 +77,48 @@ public class SecurityConfig {
         System.out.println("✅ Spring Security configured successfully");
         return http.build();
     }
+
+    // @Bean
+    // public SecurityFilterChain securityFilterChain(HttpSecurity http) throws
+    // Exception {
+    // System.out.println("🔧 Configuring Spring Security...");
+    // System.out.println("🔧 Configuring Spring Security with paths:");
+    // System.out.println(" - /api/auth/** → PERMIT_ALL");
+    // System.out.println(" - /api/health → PERMIT_ALL");
+    // System.out.println(" - /api/recipes/public → PERMIT_ALL");
+    // System.out.println(" - /api/recipes/search → PERMIT_ALL");
+    // System.out.println(" - All others → AUTHENTICATED");
+
+    // http
+    // .csrf(csrf -> csrf.disable())
+    // .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+    // .authorizeHttpRequests(auth -> auth
+    // // ⚠️ IMPORTANTE: Usar paths COMPLETOS incluyendo /api
+    // .requestMatchers("/api/auth/**").permitAll()
+    // .requestMatchers("/api/health").permitAll()
+    // .requestMatchers("/api/recipes/public").permitAll()
+    // .requestMatchers("/api/recipes/search").permitAll()
+    // .requestMatchers("/api/test").permitAll()
+    // .requestMatchers("/api/favorites/*/status").permitAll()
+    // .requestMatchers("/api/files/*localhost:8081").permitAll()
+    // .requestMatchers("/uploads/*").permitAll()
+    // .requestMatchers("/api/menus/*").authenticated() // Todos los endpoints de
+    // menús requieren
+    // // auth// Para ver status sin auth. Si tienes
+    // // endpoint de test
+    // .requestMatchers("/api/food-facts/*").permitAll() // ✅ NUEVO: Food facts
+    // públicos
+
+    // // Todos los demás endpoints requieren autenticación
+    // .anyRequest().authenticated())
+    // .sessionManagement(session -> session
+    // .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+    // .addFilterBefore(jwtAuthenticationFilter,
+    // UsernamePasswordAuthenticationFilter.class);
+
+    // System.out.println("✅ Spring Security configured successfully");
+    // return http.build();
+    // }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

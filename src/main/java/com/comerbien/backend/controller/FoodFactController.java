@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/food-facts")
-@CrossOrigin(origins = "http://localhost:8080")
+@CrossOrigin(origins = { "http://localhost:8080", "https://comerbien.com.mx" })
 public class FoodFactController {
 
        private final FoodFactService foodFactService;

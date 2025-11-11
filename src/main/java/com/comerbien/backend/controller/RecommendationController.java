@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/recommendations")
-@CrossOrigin(origins = "http://localhost:8080")
+@CrossOrigin(origins = { "http://localhost:8080", "https://comerbien.com.mx" })
 public class RecommendationController {
 
         private final RecommendationService recommendationService;
