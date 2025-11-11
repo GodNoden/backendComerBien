@@ -119,24 +119,68 @@ public class WeeklyMenuServiceImpl implements WeeklyMenuService {
 
     @Override
     public WeeklyMenuResponse removeRecipeFromMenu(Long menuId, DayOfWeek dayOfWeek, MealType mealType, Long userId) {
+        System.out.println("🎯 START removeRecipeFromMenu: " + menuId + ", " + dayOfWeek + ", " + mealType);
+
         WeeklyMenu menu = weeklyMenuRepository.findById(menuId)
                 .orElseThrow(() -> new ResourceNotFoundException("Weekly menu not found with id: " + menuId));
+
+        System.out.println(
+                "📋 Menu found: " + menu.getId() + ", User: " + menu.getUser().getId() + ", Requested by: " + userId);
 
         if (!menu.getUser().getId().equals(userId)) {
             throw new RuntimeException("You can only modify your own weekly menus");
         }
 
+        // Buscar el DayMeal específico
         DayMeal dayMeal = dayMealRepository.findByWeeklyMenuIdAndDayOfWeekAndMealType(menuId, dayOfWeek, mealType)
-                .orElseThrow(() -> new RuntimeException("Meal not found for the specified day and type"));
+                .orElseThrow(() -> new RuntimeException("Meal not found for " + dayOfWeek + "." + mealType));
 
+        System.out.println(
+                "🗑️ Deleting DayMeal ID: " + dayMeal.getId() + " with recipe: " + dayMeal.getRecipe().getTitle());
+
+        // Eliminar el DayMeal
         dayMealRepository.delete(dayMeal);
 
-        // Refrescar el menú
-        WeeklyMenu updatedMenu = weeklyMenuRepository.findById(menuId)
+        // Forzar flush
+        dayMealRepository.flush();
+
+        // Recargar el menú completo con las relaciones
+        WeeklyMenu updatedMenu = weeklyMenuRepository.findByIdWithDayMeals(menuId)
                 .orElseThrow(() -> new RuntimeException("Weekly menu not found after update"));
 
-        return convertToResponse(updatedMenu);
+        System.out.println("🔄 Updated menu - DayMeals count: " + updatedMenu.getDayMeals().size());
+
+        WeeklyMenuResponse response = convertToResponse(updatedMenu);
+        System.out.println("✅ END removeRecipeFromMenu - Success");
+
+        return response;
     }
+    // @Override
+    // public WeeklyMenuResponse removeRecipeFromMenu(Long menuId, DayOfWeek
+    // dayOfWeek, MealType mealType, Long userId) {
+    // WeeklyMenu menu = weeklyMenuRepository.findById(menuId)
+    // .orElseThrow(() -> new ResourceNotFoundException("Weekly menu not found with
+    // id: " + menuId));
+
+    // if (!menu.getUser().getId().equals(userId)) {
+    // throw new RuntimeException("You can only modify your own weekly menus");
+    // }
+
+    // DayMeal dayMeal =
+    // dayMealRepository.findByWeeklyMenuIdAndDayOfWeekAndMealType(menuId,
+    // dayOfWeek, mealType)
+    // .orElseThrow(() -> new RuntimeException("Meal not found for the specified day
+    // and type"));
+
+    // dayMealRepository.delete(dayMeal);
+
+    // // Refrescar el menú
+    // WeeklyMenu updatedMenu = weeklyMenuRepository.findById(menuId)
+    // .orElseThrow(() -> new RuntimeException("Weekly menu not found after
+    // update"));
+
+    // return convertToResponse(updatedMenu);
+    // }
 
     @Override
     public void deleteWeeklyMenu(Long menuId, Long userId) {
@@ -207,6 +251,46 @@ public class WeeklyMenuServiceImpl implements WeeklyMenuService {
         return getOrCreateWeeklyMenu(userId, weekStart);
     }
 
+    // private WeeklyMenuResponse convertToResponse(WeeklyMenu menu) {
+    // WeeklyMenuResponse response = new WeeklyMenuResponse();
+    // response.setId(menu.getId());
+    // response.setWeekStartDate(menu.getWeekStartDate());
+
+    // UserResponse userResponse = new UserResponse();
+    // userResponse.setId(menu.getUser().getId());
+    // userResponse.setUsername(menu.getUser().getUsername());
+    // userResponse.setEmail(menu.getUser().getEmail());
+    // response.setUser(userResponse);
+
+    // // ✅ CORREGIDO: Usar los tipos correctos (DayOfWeek y MealType en lugar de
+    // // String)
+    // Map<DayOfWeek, Map<MealType, List<RecipeResponse>>> dayMealsMap = new
+    // HashMap<>();
+
+    // for (DayOfWeek day : DayOfWeek.values()) {
+    // Map<MealType, List<RecipeResponse>> mealsByType = new HashMap<>();
+
+    // for (MealType mealType : MealType.values()) {
+    // List<DayMeal> meals = menu.getDayMeals().stream()
+    // .filter(dm -> dm.getDayOfWeek() == day && dm.getMealType() == mealType)
+    // .collect(Collectors.toList());
+
+    // List<RecipeResponse> recipes = meals.stream()
+    // .map(dm -> convertToRecipeResponse(dm.getRecipe()))
+    // .collect(Collectors.toList());
+
+    // // ✅ CORREGIDO: Usar el enum MealType directamente como clave
+    // mealsByType.put(mealType, recipes);
+    // }
+
+    // // ✅ CORREGIDO: Usar el enum DayOfWeek directamente como clave
+    // dayMealsMap.put(day, mealsByType);
+    // }
+
+    // response.setDayMeals(dayMealsMap);
+    // return response;
+    // }
+
     private WeeklyMenuResponse convertToResponse(WeeklyMenu menu) {
         WeeklyMenuResponse response = new WeeklyMenuResponse();
         response.setId(menu.getId());
@@ -218,8 +302,6 @@ public class WeeklyMenuServiceImpl implements WeeklyMenuService {
         userResponse.setEmail(menu.getUser().getEmail());
         response.setUser(userResponse);
 
-        // ✅ CORREGIDO: Usar los tipos correctos (DayOfWeek y MealType en lugar de
-        // String)
         Map<DayOfWeek, Map<MealType, List<RecipeResponse>>> dayMealsMap = new HashMap<>();
 
         for (DayOfWeek day : DayOfWeek.values()) {
@@ -230,19 +312,30 @@ public class WeeklyMenuServiceImpl implements WeeklyMenuService {
                         .filter(dm -> dm.getDayOfWeek() == day && dm.getMealType() == mealType)
                         .collect(Collectors.toList());
 
+                // ✅ CORREGIDO: Usar getRecipe() (singular) y crear lista con esa receta
                 List<RecipeResponse> recipes = meals.stream()
-                        .map(dm -> convertToRecipeResponse(dm.getRecipe()))
+                        .map(dm -> convertToRecipeResponse(dm.getRecipe())) // ✅ MAP, no flatMap
                         .collect(Collectors.toList());
 
-                // ✅ CORREGIDO: Usar el enum MealType directamente como clave
                 mealsByType.put(mealType, recipes);
             }
 
-            // ✅ CORREGIDO: Usar el enum DayOfWeek directamente como clave
             dayMealsMap.put(day, mealsByType);
         }
 
         response.setDayMeals(dayMealsMap);
+
+        // ✅ DEBUG: Log para verificar la estructura
+        System.out.println("📊 Converted menu response - DayMeals structure:");
+        dayMealsMap.forEach((day, meals) -> {
+            meals.forEach((mealType, recipes) -> {
+                if (!recipes.isEmpty()) {
+                    System.out.println("   " + day + "." + mealType + ": " + recipes.size() + " recipes - " +
+                            recipes.get(0).getTitle());
+                }
+            });
+        });
+
         return response;
     }
 
