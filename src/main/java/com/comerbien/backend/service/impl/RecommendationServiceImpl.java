@@ -101,6 +101,14 @@ public class RecommendationServiceImpl implements RecommendationService {
      */
     private List<Recipe> applyDecisionTree(User user, List<Recipe> recipes, MealCategory category) {
         System.out.println("🌳 APLICANDO ÁRBOL DE DECISIÓN");
+        System.out.println("🌳 ===== INICIANDO ÁRBOL DE DECISIÓN =====");
+        System.out.println("👤 Usuario ID: " + user.getId());
+        System.out.println("📋 Preferencias actuales:");
+        System.out.println("   - Alergias: " + user.getAllergies());
+        System.out.println("   - Ingredientes disgustados: " + user.getDislikedIngredients());
+        System.out.println("   - Preferencias nutricionales: " + user.getNutritionalPreferences());
+        System.out.println("   - Meta de peso: " + user.getWeightGoal());
+        System.out.println("🍽️  Recetas a evaluar: " + recipes.size());
 
         List<Recipe> filtered = recipes.stream()
                 .filter(recipe -> {
@@ -147,41 +155,58 @@ public class RecommendationServiceImpl implements RecommendationService {
         return category == null || recipe.getCategory() == category;
     }
 
-    /**
-     * Filtro 2: Alergias del usuario - CORREGIDO
-     */
     private boolean filterByAllergies(User user, Recipe recipe) {
         Set<String> userAllergies = user.getAllergies();
         if (userAllergies == null || userAllergies.isEmpty()) {
             return true;
         }
 
-        // Convertir a lowercase para comparación case-insensitive
-        Set<String> recipeIngredients = recipe.getIngredients().stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.toSet());
-
+        // Convertir todo a lowercase
         Set<String> lowerAllergies = userAllergies.stream()
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
 
-        // Verificar si algún ingrediente contiene algún alérgeno
-        boolean hasAllergy = recipeIngredients.stream()
-                .anyMatch(ingredient -> lowerAllergies.stream()
-                        .anyMatch(allergy -> ingredient.contains(allergy)));
+        List<String> recipeIngredients = recipe.getIngredients().stream()
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
 
-        if (hasAllergy) {
-            System.out.println("   ❌ Receta " + recipe.getTitle() + " contiene alergenos: " +
-                    recipeIngredients.stream()
-                            .filter(ingredient -> lowerAllergies.stream().anyMatch(ingredient::contains))
-                            .collect(Collectors.toList()));
+        System.out.println("🔍 FILTRO ALERGIAS - Receta: " + recipe.getTitle());
+        System.out.println("   Alergias: " + lowerAllergies);
+        System.out.println("   Ingredientes: " + recipeIngredients);
+
+        // Verificar cada alergia contra cada ingrediente
+        for (String allergy : lowerAllergies) {
+            for (String ingredient : recipeIngredients) {
+                // Coincidencias más estrictas
+                boolean matches =
+                        // Coincidencia exacta
+                        ingredient.equals(allergy) ||
+                        // La alergia es una palabra completa en el ingrediente
+                                Arrays.stream(ingredient.split("[,\\s]+"))
+                                        .anyMatch(word -> word.equals(allergy))
+                                ||
+                                // El ingrediente contiene la alergia como substring (pero con espacios)
+                                ingredient.contains(" " + allergy + " ") ||
+                                ingredient.startsWith(allergy + " ") ||
+                                ingredient.endsWith(" " + allergy);
+
+                if (matches) {
+                    System.out
+                            .println("   ❌ ELIMINADA - Alergia '" + allergy + "' encontrada en: '" + ingredient + "'");
+                    return false;
+                }
+            }
         }
 
-        return !hasAllergy;
+        System.out.println("   ✅ PASÓ - No se encontraron alergias en: " + recipe.getTitle());
+        return true;
     }
 
     /**
      * Filtro 3: Ingredientes que disgustan al usuario - CORREGIDO
+     */
+    /**
+     * Filtro 3: Ingredientes que disgustan al usuario - MEJORADO
      */
     private boolean filterByDislikes(User user, Recipe recipe) {
         Set<String> userDislikes = user.getDislikedIngredients();
@@ -189,26 +214,38 @@ public class RecommendationServiceImpl implements RecommendationService {
             return true;
         }
 
-        Set<String> recipeIngredients = recipe.getIngredients().stream()
-                .map(String::toLowerCase)
-                .collect(Collectors.toSet());
-
         Set<String> lowerDislikes = userDislikes.stream()
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
 
-        boolean hasDisliked = recipeIngredients.stream()
-                .anyMatch(ingredient -> lowerDislikes.stream()
-                        .anyMatch(dislike -> ingredient.contains(dislike)));
+        List<String> recipeIngredients = recipe.getIngredients().stream()
+                .map(String::toLowerCase)
+                .collect(Collectors.toList());
 
-        if (hasDisliked) {
-            System.out.println("   ❌ Receta " + recipe.getTitle() + " contiene ingredientes disgustados: " +
-                    recipeIngredients.stream()
-                            .filter(ingredient -> lowerDislikes.stream().anyMatch(ingredient::contains))
-                            .collect(Collectors.toList()));
+        System.out.println("🔍 FILTRO DISGUSTOS - Receta: " + recipe.getTitle());
+        System.out.println("   Disgustos: " + lowerDislikes);
+        System.out.println("   Ingredientes: " + recipeIngredients);
+
+        for (String dislike : lowerDislikes) {
+            for (String ingredient : recipeIngredients) {
+                boolean matches = ingredient.equals(dislike) ||
+                        Arrays.stream(ingredient.split("[,\\s]+"))
+                                .anyMatch(word -> word.equals(dislike))
+                        ||
+                        ingredient.contains(" " + dislike + " ") ||
+                        ingredient.startsWith(dislike + " ") ||
+                        ingredient.endsWith(" " + dislike);
+
+                if (matches) {
+                    System.out.println("   ❌ ELIMINADA - Ingrediente disgustado '" + dislike + "' encontrado en: '"
+                            + ingredient + "'");
+                    return false;
+                }
+            }
         }
 
-        return !hasDisliked;
+        System.out.println("   ✅ PASÓ - No se encontraron ingredientes disgustados en: " + recipe.getTitle());
+        return true;
     }
 
     /**
@@ -291,41 +328,47 @@ public class RecommendationServiceImpl implements RecommendationService {
             return 0;
 
         int calories = recipe.getCalories();
+        double proteinRatio = recipe.getCalories() > 0 ? (double) recipe.getProtein() * 4 / recipe.getCalories() : 0;
 
+        // AJUSTADO para rango 93-296 calorías
         switch (weightGoal) {
             case LOSE:
-                // Máximo bonus para recetas bajas en calorías
-                if (calories <= 350)
+                // Priorizar recetas BAJAS en calorías dentro del rango disponible
+                if (calories <= 120 && proteinRatio > 0.25)
+                    return 40;
+                if (calories <= 150)
+                    return 30;
+                if (calories <= 180)
                     return 20;
-                if (calories <= 450)
-                    return 15;
-                if (calories <= 550)
+                if (calories <= 200)
                     return 10;
-                if (calories <= 650)
+                if (calories <= 220)
                     return 5;
-                return 0;
+                return -10; // Penalizar las más altas (> 220)
 
             case MAINTAIN:
-                // Bonus para recetas balanceadas
-                if (calories >= 400 && calories <= 600)
+                // Rango medio-balanceado
+                if (calories >= 140 && calories <= 220 && proteinRatio > 0.2)
+                    return 35;
+                if (calories >= 120 && calories <= 240)
+                    return 25;
+                if (calories >= 100 && calories <= 260)
                     return 15;
-                if (calories >= 350 && calories <= 650)
-                    return 10;
-                if (calories >= 300 && calories <= 700)
-                    return 5;
                 return 0;
 
             case GAIN:
-                // Máximo bonus para recetas altas en calorías y proteína
-                if (calories >= 600 && hasHighProtein(recipe))
-                    return 20;
-                if (calories >= 500 && hasHighProtein(recipe))
+                // Priorizar las MÁS ALTAS disponibles y con buena proteína
+                if (calories >= 220 && proteinRatio > 0.3)
+                    return 45;
+                if (calories >= 200 && proteinRatio > 0.25)
+                    return 35;
+                if (calories >= 180)
+                    return 25;
+                if (calories >= 160)
                     return 15;
-                if (calories >= 600)
-                    return 10;
-                if (calories >= 500)
+                if (calories >= 140)
                     return 5;
-                return 0;
+                return -5; // Penalizar las más bajas (< 140)
 
             default:
                 return 0;
