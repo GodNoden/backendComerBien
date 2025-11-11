@@ -107,27 +107,148 @@ public class FoodFactServiceImpl implements FoodFactService {
     }
 
     // MANTÉN solo este método que es el correcto:
+    // @Override
+    // @Transactional(readOnly = true)
+    // public List<FoodFactResponse> getRelevantFactsForRecipe(Long recipeId) {
+    // // Primero buscar facts específicos para esta receta
+    // List<FoodFact> relevantFacts =
+    // foodFactRepository.findRelevantFactsForRecipe(recipeId);
+
+    // // Si no hay facts específicos, buscar por categoría de la receta
+    // if (relevantFacts.isEmpty()) {
+    // Recipe recipe = recipeRepository.findById(recipeId)
+    // .orElseThrow(() -> new ResourceNotFoundException("Recipe not found with id: "
+    // + recipeId));
+    // relevantFacts =
+    // foodFactRepository.findRelevantFactsForCategory(recipe.getCategory());
+    // }
+
+    // // Si aún no hay facts, mostrar algunos aleatorios activos
+    // if (relevantFacts.isEmpty()) {
+    // relevantFacts = foodFactRepository.findRandomFacts(2);
+    // }
+
+    // return relevantFacts.stream()
+    // .map(this::convertToResponse)
+    // .collect(Collectors.toList());
+    // }
+
     @Override
     @Transactional(readOnly = true)
     public List<FoodFactResponse> getRelevantFactsForRecipe(Long recipeId) {
-        // Primero buscar facts específicos para esta receta
-        List<FoodFact> relevantFacts = foodFactRepository.findRelevantFactsForRecipe(recipeId);
+        try {
+            System.out.println("🔍 Searching relevant facts for recipe: " + recipeId);
 
-        // Si no hay facts específicos, buscar por categoría de la receta
-        if (relevantFacts.isEmpty()) {
             Recipe recipe = recipeRepository.findById(recipeId)
                     .orElseThrow(() -> new ResourceNotFoundException("Recipe not found with id: " + recipeId));
-            relevantFacts = foodFactRepository.findRelevantFactsForCategory(recipe.getCategory());
+
+            // 1. Buscar facts ALTAMENTE relevantes (coincidencia exacta de ingredientes
+            // clave)
+            List<FoodFact> highlyRelevantFacts = findHighlyRelevantFacts(recipe);
+
+            // 2. Si encontramos facts altamente relevantes, devolver máximo 2
+            if (!highlyRelevantFacts.isEmpty()) {
+                System.out.println("✅ Found " + highlyRelevantFacts.size() + " highly relevant facts");
+                return highlyRelevantFacts.stream()
+                        .limit(2) // Máximo 2 facts
+                        .map(this::convertToResponse)
+                        .collect(Collectors.toList());
+            }
+
+            // 3. Si no hay altamente relevantes, buscar por categoría (más genéricos)
+            List<FoodFact> categoryFacts = foodFactRepository.findRelevantFactsForCategory(recipe.getCategory());
+            if (!categoryFacts.isEmpty()) {
+                System.out.println("✅ Found " + categoryFacts.size() + " category-relevant facts");
+                return categoryFacts.stream()
+                        .limit(1) // Solo 1 fact de categoría
+                        .map(this::convertToResponse)
+                        .collect(Collectors.toList());
+            }
+
+            // 4. Si no hay nada relevante, devolver lista vacía (MEJOR que datos no
+            // relevantes)
+            System.out.println("No relevant facts found for recipe: " + recipeId);
+            return new ArrayList<>();
+
+        } catch (Exception e) {
+            System.out.println("❌ Error finding relevant facts: " + e.getMessage());
+            // En caso de error, mejor devolver vacío que datos incorrectos
+            return new ArrayList<>();
+        }
+    }
+
+    private List<FoodFact> findHighlyRelevantFacts(Recipe recipe) {
+        List<FoodFact> allActiveFacts = foodFactRepository.findByIsActiveTrue();
+        List<FoodFact> highlyRelevant = new ArrayList<>();
+
+        // Ingredientes clave para buscar coincidencias exactas
+        List<String> keyIngredients = extractKeyIngredients(recipe.getIngredients());
+
+        for (FoodFact fact : allActiveFacts) {
+            if (hasHighRelevance(fact, keyIngredients, recipe)) {
+                highlyRelevant.add(fact);
+
+                // Limitar a 3 facts máximo para no sobrecargar
+                if (highlyRelevant.size() >= 3) {
+                    break;
+                }
+            }
         }
 
-        // Si aún no hay facts, mostrar algunos aleatorios activos
-        if (relevantFacts.isEmpty()) {
-            relevantFacts = foodFactRepository.findRandomFacts(2);
-        }
+        return highlyRelevant;
+    }
 
-        return relevantFacts.stream()
-                .map(this::convertToResponse)
+    private List<String> extractKeyIngredients(List<String> ingredients) {
+        return ingredients.stream()
+                .map(ingredient -> {
+                    // Limpiar y normalizar ingredientes
+                    String clean = ingredient.toLowerCase()
+                            .replaceAll("[^a-zA-Záéíóúñ\\s]", "") // Remover números y símbolos
+                            .trim();
+
+                    // Quitar cantidades y medidas (ej: "2 tazas de arroz" → "arroz")
+                    clean = clean.replaceAll("^\\d+\\s*\\w+\\s+de\\s+", "");
+                    clean = clean.replaceAll("^\\d+/\\d+\\s*\\w+\\s+de\\s+", "");
+                    clean = clean.replaceAll("^\\d+\\s+", "");
+
+                    return clean.trim();
+                })
+                .filter(ingredient -> ingredient.length() > 3) // Filtrar ingredientes muy cortos
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasHighRelevance(FoodFact fact, List<String> keyIngredients, Recipe recipe) {
+        int relevanceScore = 0;
+
+        // 1. Coincidencia EXACTA de ingredientes clave (alto puntaje)
+        for (String keyword : fact.getKeywords()) {
+            String cleanKeyword = keyword.toLowerCase().trim();
+
+            for (String ingredient : keyIngredients) {
+                if (ingredient.contains(cleanKeyword) || cleanKeyword.contains(ingredient)) {
+                    relevanceScore += 3; // Alta relevancia
+                    System.out.println("🎯 High match: '" + cleanKeyword + "' in '" + ingredient + "'");
+                }
+            }
+        }
+
+        // 2. Coincidencia de categoría (medio puntaje)
+        if (fact.getCategory() != null && fact.getCategory() == recipe.getCategory()) {
+            relevanceScore += 2;
+        }
+
+        // 3. Coincidencia en tags (bajo puntaje)
+        if (recipe.getTags() != null) {
+            for (String keyword : fact.getKeywords()) {
+                if (recipe.getTags().stream()
+                        .anyMatch(tag -> tag.name().toLowerCase().contains(keyword.toLowerCase()))) {
+                    relevanceScore += 1;
+                }
+            }
+        }
+
+        // Solo considerar "altamente relevante" si tiene al menos 3 puntos
+        return relevanceScore >= 3;
     }
 
     @Override

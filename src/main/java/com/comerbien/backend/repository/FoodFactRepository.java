@@ -31,9 +31,18 @@ public interface FoodFactRepository extends JpaRepository<FoodFact, Long> {
         List<FoodFact> findRelevantFactsForRecipe(@Param("recipeId") Long recipeId);
 
         // Encontrar facts por categoría de receta
+        // @Query("SELECT f FROM FoodFact f WHERE f.isActive = true AND " +
+        // "(f.category = :category OR f.category IS NULL)")
+        // List<FoodFact> findRelevantFactsForCategory(@Param("category") MealCategory
+        // category);
         @Query("SELECT f FROM FoodFact f WHERE f.isActive = true AND " +
-                        "(f.category = :category OR f.category IS NULL)")
+                        "f.category = :category " +
+                        "ORDER BY f.id DESC") // ← ORDENAR por ID descendente (más nuevos primero)
         List<FoodFact> findRelevantFactsForCategory(@Param("category") MealCategory category);
+
+        @Query("SELECT f FROM FoodFact f WHERE f.isActive = true " +
+                        "ORDER BY f.id DESC LIMIT :limit")
+        List<FoodFact> findRecentFacts(@Param("limit") int limit);
 
         @Query(value = "SELECT * FROM food_facts f WHERE f.is_active = true ORDER BY RANDOM() LIMIT :limit", nativeQuery = true)
         List<FoodFact> findRandomFacts(@Param("limit") int limit);
